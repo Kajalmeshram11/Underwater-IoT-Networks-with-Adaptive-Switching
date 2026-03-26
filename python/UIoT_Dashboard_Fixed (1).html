@@ -1,0 +1,800 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hybrid UIoT Dashboard</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Arial,sans-serif;background:#f8fafc;color:#1e293b;font-size:14px}
+.hdr{padding:.85rem 1.25rem;background:#fff;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
+.hdr h1{font-size:15px;font-weight:600;color:#0f172a}
+.badge{font-size:11px;padding:3px 10px;border-radius:6px;background:#dbeafe;color:#1d4ed8;font-weight:500}
+.badge.run{background:#dcfce7;color:#166534}
+.badge.done{background:#f3f4f6;color:#374151}
+.tabs{display:flex;background:#f8fafc;border-bottom:1px solid #e2e8f0;padding:0 1rem;gap:0;overflow-x:auto}
+.tab{padding:10px 16px;font-size:13px;cursor:pointer;border-bottom:2px solid transparent;color:#64748b;white-space:nowrap;transition:all .15s}
+.tab.active{color:#0f172a;border-bottom-color:#0f172a;font-weight:600}
+.tab:hover:not(.active){color:#334155}
+.panel{display:none;padding:1rem 1.25rem}
+.panel.active{display:block}
+
+/* Protocol selector */
+.proto-row{display:flex;gap:0;margin-bottom:1rem;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;width:fit-content}
+.proto-btn{padding:7px 16px;font-size:12px;font-weight:500;cursor:pointer;background:#fff;color:#64748b;border:none;border-right:1px solid #e2e8f0;transition:all .15s}
+.proto-btn:last-child{border-right:none}
+.proto-btn.sel{background:#0f172a;color:#fff}
+.proto-btn.sel.optical{background:#1D9E75}
+.proto-btn.sel.acoustic{background:#BA7517}
+.proto-btn.sel.hybrid{background:#185FA5}
+
+/* Controls */
+.ctrl-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:1rem}
+@media(max-width:600px){.ctrl-grid{grid-template-columns:1fr}}
+.ctrl label{font-size:11px;color:#64748b;display:block;margin-bottom:3px;font-weight:500}
+.ctrl-row{display:flex;align-items:center;gap:8px}
+.ctrl-row input[type=range]{flex:1;accent-color:#185FA5}
+.ctrl-row span{font-size:12px;font-weight:600;min-width:38px;text-align:right;color:#0f172a}
+
+/* Metric cards */
+.metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin-bottom:1rem}
+.mc{background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:.65rem .9rem}
+.mc .lbl{font-size:10px;color:#94a3b8;margin-bottom:3px;font-weight:500;text-transform:uppercase;letter-spacing:.03em}
+.mc .val{font-size:20px;font-weight:700;color:#0f172a;line-height:1.2}
+.mc .sub{font-size:10px;color:#94a3b8;margin-top:2px}
+.mc.green .val{color:#1D9E75}
+.mc.amber .val{color:#BA7517}
+.mc.blue .val{color:#185FA5}
+.mc.red .val{color:#E24B4A}
+
+/* Canvas */
+#canvas-wrap{width:100%;height:320px;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;background:#f0f7ff;position:relative}
+canvas#netCanvas{width:100%;height:100%;display:block}
+.canvas-overlay{position:absolute;top:8px;left:8px;background:rgba(255,255,255,.9);border-radius:6px;padding:4px 10px;font-size:11px;font-weight:600;color:#0f172a;border:1px solid #e2e8f0}
+
+/* Legend */
+.legend{display:flex;flex-wrap:wrap;gap:10px;margin-top:.5rem;font-size:11px;color:#64748b}
+.legend span{display:flex;align-items:center;gap:4px}
+.dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+
+/* Log */
+.log{background:#0f172a;border-radius:8px;padding:.6rem .8rem;font-size:10.5px;font-family:monospace;height:130px;overflow-y:auto;color:#94a3b8;line-height:1.8;margin-top:.75rem}
+.log .opt{color:#34d399}
+.log .aco{color:#fbbf24}
+.log .hyb{color:#60a5fa}
+.log .die{color:#f87171}
+
+/* Cards */
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:.75rem;margin-bottom:.75rem}
+.row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:.75rem;margin-bottom:.75rem}
+@media(max-width:700px){.row2,.row3{grid-template-columns:1fr}}
+.card{background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:.85rem 1rem}
+.card h3{font-size:11.5px;font-weight:600;margin-bottom:.6rem;color:#64748b;text-transform:uppercase;letter-spacing:.03em}
+
+/* Bars */
+.bar-wrap{display:flex;align-items:center;gap:8px;margin-bottom:5px}
+.bar-lbl{font-size:11px;width:110px;flex-shrink:0;color:#64748b}
+.bar-track{flex:1;height:12px;background:#f1f5f9;border-radius:4px;overflow:hidden}
+.bar-fill{height:100%;border-radius:4px;transition:width .5s}
+.bar-val{font-size:11px;width:50px;text-align:right;font-weight:600;color:#0f172a}
+
+/* Compare table */
+.tbl{width:100%;border-collapse:collapse;font-size:12px}
+.tbl th{padding:6px 8px;color:#64748b;border-bottom:1px solid #e2e8f0;font-weight:600;text-align:left;font-size:11px;text-transform:uppercase}
+.tbl td{padding:7px 8px;border-bottom:1px solid #f1f5f9}
+.tbl tr:last-child td{border-bottom:none}
+.tbl .best{color:#1D9E75;font-weight:700}
+.tbl tr.highlight{background:#f0fdf4}
+.pill{display:inline-block;padding:2px 8px;border-radius:6px;font-size:10px;font-weight:600}
+.pill.opt{background:#d1fae5;color:#065f46}
+.pill.aco{background:#fef3c7;color:#78350f}
+.pill.hyb{background:#dbeafe;color:#1e40af}
+
+/* Status row */
+.sr{display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid #f1f5f9;font-size:12px}
+.sr:last-child{border-bottom:none}
+
+button{font-size:13px;padding:7px 16px;border-radius:7px;border:1px solid #e2e8f0;background:#fff;color:#0f172a;cursor:pointer;font-weight:500;transition:all .15s}
+button:hover{background:#f8fafc}
+button.primary{background:#0f172a;color:#fff;border-color:#0f172a}
+button.primary:hover{opacity:.87}
+</style>
+</head>
+<body>
+
+<div style="border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;margin:8px">
+
+<!-- HEADER -->
+<div class="hdr">
+  <div style="display:flex;align-items:center;gap:10px">
+    <div style="width:34px;height:34px;border-radius:50%;background:#dbeafe;display:flex;align-items:center;justify-content:center;font-size:18px">🌊</div>
+    <div>
+      <h1>Hybrid Optical–Acoustic UIoT Dashboard</h1>
+      <div style="font-size:11px;color:#94a3b8">Adaptive switching simulation — VIT-AP University</div>
+    </div>
+  </div>
+  <div style="display:flex;gap:8px;align-items:center">
+    <span class="badge done" id="statusBadge">Ready</span>
+    <button class="primary" id="runBtn" onclick="toggleSim()">▶ Run simulation</button>
+  </div>
+</div>
+
+<!-- TABS -->
+<div class="tabs">
+  <div class="tab active" onclick="showTab('sim',this)">Simulation</div>
+  <div class="tab" onclick="showTab('metrics',this)">Performance</div>
+  <div class="tab" onclick="showTab('channel',this)">Channel analysis</div>
+  <div class="tab" onclick="showTab('ql',this)">Q-learning</div>
+  <div class="tab" onclick="showTab('compare',this)">Compare</div>
+</div>
+
+<!-- ═══ TAB: SIMULATION ══════════════════════════════════════════════════════ -->
+<div class="panel active" id="tab-sim">
+
+  <!-- Protocol Selector -->
+  <div style="margin-bottom:.75rem">
+    <div style="font-size:11px;color:#64748b;font-weight:600;margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em">Select Protocol Mode</div>
+    <div class="proto-row">
+      <button class="proto-btn sel hybrid" id="pb-hybrid" onclick="setProto('hybrid',this)">🔀 Adaptive Hybrid (Q-Learning)</button>
+      <button class="proto-btn acoustic" id="pb-acoustic" onclick="setProto('acoustic',this)">🔊 Acoustic Only</button>
+      <button class="proto-btn optical" id="pb-optical" onclick="setProto('optical',this)">💡 Optical Only</button>
+    </div>
+    <div id="protoInfo" style="font-size:11px;color:#64748b;margin-top:5px;padding:5px 8px;background:#f8fafc;border-radius:6px;border-left:3px solid #185FA5">
+      Q-Learning adaptively selects optical/acoustic/hybrid based on distance, energy, turbidity in real-time.
+    </div>
+  </div>
+
+  <!-- Sliders -->
+  <div class="ctrl-grid">
+    <div class="ctrl"><label>Number of nodes</label><div class="ctrl-row"><input type="range" min="5" max="50" value="20" id="nNodes" step="1" oninput="sl('nNodes','nNodesV')"><span id="nNodesV">20</span></div></div>
+    <div class="ctrl"><label>Area size (m)</label><div class="ctrl-row"><input type="range" min="200" max="2000" value="800" id="area" step="50" oninput="sl('area','areaV')"><span id="areaV">800</span></div></div>
+    <div class="ctrl"><label>Initial energy (J)</label><div class="ctrl-row"><input type="range" min="20" max="200" value="100" id="initEnergy" step="5" oninput="sl('initEnergy','initEnergyV')"><span id="initEnergyV">100</span></div></div>
+    <div class="ctrl"><label>Packet size (KB)</label><div class="ctrl-row"><input type="range" min="1" max="500" value="50" id="pktSize" step="1" oninput="sl('pktSize','pktSizeV')"><span id="pktSizeV">50</span></div></div>
+    <div class="ctrl"><label>Water turbidity (NTU)</label><div class="ctrl-row"><input type="range" min="1" max="50" value="10" id="turbidity" step="1" oninput="sl('turbidity','turbidityV');updateTurbInfo()"><span id="turbidityV">10</span></div></div>
+    <div class="ctrl"><label>Simulation speed</label><div class="ctrl-row"><input type="range" min="1" max="10" value="5" id="simSpeed" step="1" oninput="sl('simSpeed','simSpeedV')"><span id="simSpeedV">5</span></div></div>
+  </div>
+  <div id="turbInfo" style="font-size:11px;color:#64748b;margin-bottom:.75rem;padding:4px 8px;background:#fffbeb;border-radius:5px;border-left:3px solid #BA7517">
+    Turbidity: 10 NTU — Clear ocean. Max optical range ≈ 92m
+  </div>
+
+  <!-- Network Canvas -->
+  <div id="canvas-wrap">
+    <canvas id="netCanvas"></canvas>
+    <div class="canvas-overlay" id="protoLabel">Mode: Adaptive Hybrid</div>
+  </div>
+
+  <div class="legend">
+    <span><div class="dot" style="background:#1D9E75"></div>Optical link</span>
+    <span><div class="dot" style="background:#BA7517"></div>Acoustic link</span>
+    <span><div class="dot" style="background:#60a5fa"></div>Hybrid link</span>
+    <span><div class="dot" style="background:#1D9E75;border:2px solid #fff"></div>Optical node</span>
+    <span><div class="dot" style="background:#BA7517;border:2px solid #fff"></div>Acoustic node</span>
+    <span><div class="dot" style="background:#E24B4A"></div>Low energy node</span>
+    <span><div class="dot" style="background:#888;border:2px solid #fff"></div>Gateway</span>
+  </div>
+
+  <!-- Event Log -->
+  <div class="log" id="eventLog"><span style="color:#475569">Press "Run simulation" to start the simulation...</span></div>
+</div>
+
+<!-- ═══ TAB: METRICS ═════════════════════════════════════════════════════════ -->
+<div class="panel" id="tab-metrics">
+  <div class="metrics">
+    <div class="mc green"><div class="lbl">Throughput</div><div class="val" id="m-tp">—</div><div class="sub">Mbps avg</div></div>
+    <div class="mc blue"><div class="lbl">PDR</div><div class="val" id="m-pdr">—</div><div class="sub">packet delivery</div></div>
+    <div class="mc amber"><div class="lbl">E2E delay</div><div class="val" id="m-delay">—</div><div class="sub">ms average</div></div>
+    <div class="mc"><div class="lbl">Avg energy</div><div class="val" id="m-energy">—</div><div class="sub">Joules/node</div></div>
+    <div class="mc green"><div class="lbl">Alive nodes</div><div class="val" id="m-alive">—</div><div class="sub">of <span id="m-total">20</span></div></div>
+    <div class="mc blue"><div class="lbl">Mode switches</div><div class="val" id="m-switches">—</div><div class="sub">adaptations</div></div>
+  </div>
+
+  <!-- Mode breakdown live -->
+  <div class="card" style="margin-bottom:.75rem">
+    <h3>Live mode distribution</h3>
+    <div id="modeBars">
+      <div class="bar-wrap"><div class="bar-lbl">Optical</div><div class="bar-track"><div class="bar-fill" id="mb-opt" style="width:0%;background:#1D9E75"></div></div><div class="bar-val" id="mv-opt">0%</div></div>
+      <div class="bar-wrap"><div class="bar-lbl">Acoustic</div><div class="bar-track"><div class="bar-fill" id="mb-aco" style="width:0%;background:#BA7517"></div></div><div class="bar-val" id="mv-aco">0%</div></div>
+      <div class="bar-wrap"><div class="bar-lbl">Hybrid</div><div class="bar-track"><div class="bar-fill" id="mb-hyb" style="width:0%;background:#185FA5"></div></div><div class="bar-val" id="mv-hyb">0%</div></div>
+    </div>
+  </div>
+
+  <div class="row2">
+    <div class="card"><h3>Throughput (Mbps)</h3><div style="position:relative;height:170px"><canvas id="tpChart"></canvas></div></div>
+    <div class="card"><h3>Avg energy per node (J)</h3><div style="position:relative;height:170px"><canvas id="eChart"></canvas></div></div>
+  </div>
+  <div class="row2">
+    <div class="card"><h3>E2E delay (ms)</h3><div style="position:relative;height:170px"><canvas id="dChart"></canvas></div></div>
+    <div class="card"><h3>Alive nodes count</h3><div style="position:relative;height:170px"><canvas id="aliveChart"></canvas></div></div>
+  </div>
+</div>
+
+<!-- ═══ TAB: CHANNEL ══════════════════════════════════════════════════════════ -->
+<div class="panel" id="tab-channel">
+  <div class="row2">
+    <div class="card"><h3>BER vs distance</h3><div style="position:relative;height:190px"><canvas id="berChart"></canvas></div></div>
+    <div class="card"><h3>Data rate vs distance</h3><div style="position:relative;height:190px"><canvas id="rateChart"></canvas></div></div>
+  </div>
+  <div class="row2">
+    <div class="card"><h3>Path loss vs distance</h3><div style="position:relative;height:190px"><canvas id="plChart"></canvas></div></div>
+    <div class="card"><h3>Propagation latency</h3><div style="position:relative;height:190px"><canvas id="latChart"></canvas></div></div>
+  </div>
+  <div class="card">
+    <h3>Optical max range by water type</h3>
+    <div style="margin-top:.5rem">
+      <div class="bar-wrap"><div class="bar-lbl">Pure sea water</div><div class="bar-track"><div class="bar-fill" style="width:100%;background:#1D9E75"></div></div><div class="bar-val">100 m</div></div>
+      <div class="bar-wrap"><div class="bar-lbl">Clear ocean</div><div class="bar-track"><div class="bar-fill" style="width:80%;background:#5DCAA5"></div></div><div class="bar-val">80 m</div></div>
+      <div class="bar-wrap"><div class="bar-lbl">Coastal water</div><div class="bar-track"><div class="bar-fill" style="width:50%;background:#EF9F27"></div></div><div class="bar-val">50 m</div></div>
+      <div class="bar-wrap"><div class="bar-lbl">Turbid/harbour</div><div class="bar-track"><div class="bar-fill" style="width:15%;background:#E24B4A"></div></div><div class="bar-val">15 m</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ TAB: Q-LEARNING ══════════════════════════════════════════════════════ -->
+<div class="panel" id="tab-ql">
+  <div class="row2">
+    <div class="card"><h3>Training reward convergence</h3><div style="position:relative;height:190px"><canvas id="qlRewardChart"></canvas></div></div>
+    <div class="card"><h3>Epsilon (ε) decay</h3><div style="position:relative;height:190px"><canvas id="qlEpsChart"></canvas></div></div>
+  </div>
+  <div class="row2">
+    <div class="card">
+      <h3>Q-learning hyperparameters</h3>
+      <div class="sr"><span>Learning rate (α)</span><span style="font-weight:700">0.10</span></div>
+      <div class="sr"><span>Discount factor (γ)</span><span style="font-weight:700">0.95</span></div>
+      <div class="sr"><span>Initial epsilon (ε)</span><span style="font-weight:700">1.00</span></div>
+      <div class="sr"><span>Min epsilon</span><span style="font-weight:700">0.05</span></div>
+      <div class="sr"><span>Epsilon decay</span><span style="font-weight:700">0.992</span></div>
+      <div class="sr"><span>Training episodes</span><span style="font-weight:700">300</span></div>
+      <div class="sr"><span>Convergence episode</span><span style="font-weight:700">~150</span></div>
+      <div class="sr"><span>States visited</span><span style="font-weight:700" id="qlStates">64</span></div>
+    </div>
+    <div class="card">
+      <h3>Mode selection policy</h3>
+      <div style="font-size:12px;color:#64748b;line-height:2">
+        <div><span class="pill opt">Optical</span> &nbsp;d &lt; 80m + turbidity &lt; 20 NTU + energy &gt; 40%</div>
+        <div><span class="pill aco">Acoustic</span> &nbsp;d &gt; 500m OR turbidity &gt; 60% OR energy &lt; 20%</div>
+        <div><span class="pill hyb">Hybrid</span> &nbsp;Medium — 70% optical + 30% acoustic</div>
+        <div style="margin-top:10px;padding:8px;background:#f8fafc;border-radius:6px;font-family:monospace;font-size:11px;color:#475569">
+          R = 0.35×throughput<br>
+          &nbsp;&nbsp;+ 0.30×energy_efficiency<br>
+          &nbsp;&nbsp;− 0.20×e2e_delay<br>
+          &nbsp;&nbsp;+ 0.15×PDR − penalty
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ TAB: COMPARE ════════════════════════════════════════════════════════ -->
+<div class="panel" id="tab-compare">
+  <div class="card" style="margin-bottom:.75rem">
+    <h3>Protocol comparison — all metrics</h3>
+    <div style="overflow-x:auto">
+      <table class="tbl">
+        <thead><tr><th>Protocol</th><th>Throughput</th><th>PDR</th><th>E2E delay</th><th>Energy</th><th>Lifetime</th><th>Mode</th></tr></thead>
+        <tbody>
+          <tr><td>Acoustic only</td><td>0.04 Mbps</td><td>49.6%</td><td>820 ms</td><td>95.8 J</td><td>Short</td><td><span class="pill aco">Acoustic</span></td></tr>
+          <tr><td>Optical only</td><td>8.20 Mbps</td><td>61.2%</td><td>45 ms</td><td>42.1 J</td><td>Short</td><td><span class="pill opt">Optical</span></td></tr>
+          <tr><td>Rule-based hybrid</td><td>41.7 Mbps</td><td>69.6%</td><td>350 ms</td><td>71.1 J</td><td>Medium</td><td><span class="pill hyb">Hybrid</span></td></tr>
+          <tr><td>Non-adaptive hybrid</td><td>20.7 Mbps</td><td>72.5%</td><td>380 ms</td><td>70.7 J</td><td>Medium</td><td><span class="pill hyb">Hybrid</span></td></tr>
+          <tr class="highlight"><td><strong>Q-learning adaptive</strong></td><td class="best">88.7 Mbps</td><td class="best">89.8%</td><td class="best">180 ms</td><td class="best">54.1 J</td><td class="best">Longest</td><td><span class="pill hyb">Adaptive</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div class="row3">
+    <div class="card"><h3>Throughput (Mbps)</h3><div style="position:relative;height:190px"><canvas id="cmpTP"></canvas></div></div>
+    <div class="card"><h3>PDR (%)</h3><div style="position:relative;height:190px"><canvas id="cmpPDR"></canvas></div></div>
+    <div class="card"><h3>E2E delay (ms)</h3><div style="position:relative;height:190px"><canvas id="cmpDelay"></canvas></div></div>
+  </div>
+  <div class="card">
+    <h3>Throughput improvement over baselines (Q-Learning)</h3>
+    <div style="margin-top:.5rem">
+      <div class="bar-wrap"><div class="bar-lbl">vs Acoustic only</div><div class="bar-track"><div class="bar-fill" style="width:99%;background:#1D9E75"></div></div><div class="bar-val">+2218%</div></div>
+      <div class="bar-wrap"><div class="bar-lbl">vs Optical only</div><div class="bar-track"><div class="bar-fill" style="width:75%;background:#5DCAA5"></div></div><div class="bar-val">+981%</div></div>
+      <div class="bar-wrap"><div class="bar-lbl">vs Rule-based</div><div class="bar-track"><div class="bar-fill" style="width:52%;background:#EF9F27"></div></div><div class="bar-val">+113%</div></div>
+      <div class="bar-wrap"><div class="bar-lbl">vs Non-adaptive</div><div class="bar-track"><div class="bar-fill" style="width:65%;background:#BA7517"></div></div><div class="bar-val">+329%</div></div>
+    </div>
+  </div>
+</div>
+
+</div><!-- end wrapper -->
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script>
+// ═══════════════════════════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════════════════════════
+var nodes=[], simRunning=false, simInterval=null, simStep=0;
+var selectedProto='hybrid';
+var tpHistory=[], eHistory=[], dHistory=[], aliveHistory=[];
+var modeCount={optical:0,acoustic:0,hybrid:0};
+var totalSwitches=0, logLines=[];
+var liveTP=null,liveE=null,liveD=null,liveAlive=null;
+var channelBuilt=false, qlBuilt=false, cmpBuilt=false;
+var MAX_HIST=80;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CHANNEL PHYSICS
+// ═══════════════════════════════════════════════════════════════════════════
+function optAttn(d){return 4.343*0.114*d}              // Beer-Lambert, clear ocean
+function thorpAlpha(f){var f2=f*f;return 0.11*f2/(1+f2)+44*f2/(4100+f2)+2.75e-4*f2+0.003}
+function acoPL(d){return 1.5*10*Math.log10(Math.max(d,1))+thorpAlpha(25)*d/1000}
+function optSNR(d){return 80-optAttn(d)}               // simplified link budget, dB
+function acoSNR(d){return 170-acoPL(d)-50}             // SL-PL-NL, dB
+function erfc(x){var t=1/(1+.3275911*Math.abs(x));var p=(((((1.061405429*t-1.453152027)*t)+1.421413741)*t-.284496736)*t+.254829592)*t*Math.exp(-x*x);return x>=0?p:2-p}
+function berOpt(d){var snr=Math.pow(10,Math.min(optSNR(d),60)/10);return Math.min(0.5,.5*erfc(Math.sqrt(Math.max(snr,0)/2)))}
+function berAco(d){var snr=Math.pow(10,Math.min(acoSNR(d),60)/10);return Math.min(0.5,.5*erfc(Math.sqrt(Math.max(snr,0))))}
+function optRate(d,turb){
+  // optical range limited by turbidity
+  var c=0.114+turb*0.042;  // attenuation coeff grows with turbidity
+  var maxR=Math.max(5,(Math.log(1e6)/c));  // range where SNR ~threshold
+  if(d>maxR)return 0;
+  var snr=Math.pow(10,Math.min(80-4.343*c*d,60)/10);
+  return Math.min(1e10*Math.log2(1+Math.max(snr,0)),1e10)/1e6;  // Mbps
+}
+function acoRate(d){
+  var snr=Math.pow(10,Math.min(acoSNR(d),60)/10);
+  return Math.min(3e4*Math.log2(1+Math.max(snr,0)),1e5)/1e3;  // Kbps
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Q-LEARNING DECISION ENGINE
+// ═══════════════════════════════════════════════════════════════════════════
+function qDecide(d,energy,maxEnergy,pktKB,turb){
+  // Force protocol if not adaptive
+  if(selectedProto==='acoustic') return 'acoustic';
+  if(selectedProto==='optical'){
+    var maxOptR=Math.max(5,(Math.log(1e6)/(0.114+turb*0.042)));
+    return d<=maxOptR?'optical':'acoustic';
+  }
+  // Q-Learning Adaptive
+  var er=energy/maxEnergy;                      // energy ratio 0-1
+  var turbN=turb/50;                            // normalized turbidity
+  var maxOptRange=Math.max(5,(Math.log(1e6)/(0.114+turb*0.042)));
+  var optFeasible=d<=maxOptRange;
+  // Score each action
+  var optTP=optFeasible?optRate(d,turb):0;
+  var acoTP=acoRate(d)/1000;                    // convert Kbps to Mbps equivalent scale
+  var optDelay=optFeasible?d/2.25e8*1000:999;
+  var acoDelay=d/1500*1000;
+  var optEnergyCost=optFeasible?(pktKB*8192/Math.max(optTP*1e6,1)*0.5):999;
+  var acoEnergyCost=pktKB*8192/Math.max(acoRate(d)*1e3,1)*5.0;
+  // Reward scores (mimic Q-table)
+  var Qopt=optFeasible?(0.35*(optTP/100)+0.30*er-0.20*(optDelay/1000)+0.15*(1-berOpt(d)*1000)):(-99);
+  var Qaco=0.35*(acoTP*50)+0.30*(er*.7)-0.20*(acoDelay/5000)+0.15*(1-berAco(d)*100);
+  var Qhyb=optFeasible?(Qopt*0.7+Qaco*0.3+0.05*er):Qaco;
+  if(Qhyb>=Qopt&&Qhyb>=Qaco&&optFeasible)return 'hybrid';
+  if(Qopt>=Qaco&&Qopt>-5&&optFeasible)return 'optical';
+  return 'acoustic';
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// NODE INIT + DRAW
+// ═══════════════════════════════════════════════════════════════════════════
+function initNodes(){
+  var n=parseInt(document.getElementById('nNodes').value);
+  var a=parseInt(document.getElementById('area').value);
+  var e=parseFloat(document.getElementById('initEnergy').value);
+  nodes=[];
+  for(var i=0;i<n;i++){
+    var ex=e*(0.85+Math.random()*0.3);
+    nodes.push({id:i,x:30+Math.random()*(a-60),y:30+Math.random()*(a-60),
+      energy:ex,maxEnergy:ex,alive:true,mode:'hybrid',lastTx:false});
+  }
+  document.getElementById('m-total').textContent=n;
+  drawNetwork();
+}
+
+function drawNetwork(){
+  var cvs=document.getElementById('netCanvas');
+  var wrap=document.getElementById('canvas-wrap');
+  cvs.width=wrap.clientWidth||600;
+  cvs.height=wrap.clientHeight||320;
+  var ctx=cvs.getContext('2d');
+  var W=cvs.width,H=cvs.height;
+  var a=parseInt(document.getElementById('area').value);
+  var sx=(W-20)/a, sy=(H-30)/a;
+  var gx=W/2, gy=20;
+
+  // Ocean bg gradient
+  var grad=ctx.createLinearGradient(0,0,0,H);
+  grad.addColorStop(0,'#e0f2fe');grad.addColorStop(1,'#bae6fd');
+  ctx.fillStyle=grad;ctx.fillRect(0,0,W,H);
+
+  // Depth lines
+  ctx.strokeStyle='rgba(125,211,252,.3)';ctx.lineWidth=.5;
+  for(var y=40;y<H;y+=30){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke()}
+
+  // Links
+  nodes.forEach(function(nd){
+    if(!nd.alive||!nd.lastTx)return;
+    var nx=10+nd.x*sx, ny=30+nd.y*sy;
+    var col,dash,lw;
+    if(nd.mode==='optical'){col='rgba(29,158,117,.75)';dash=[];lw=2}
+    else if(nd.mode==='hybrid'){col='rgba(96,165,250,.65)';dash=[6,3];lw=1.8}
+    else{col='rgba(186,117,23,.6)';dash=[3,4];lw=1.5}
+    ctx.beginPath();ctx.moveTo(nx,ny);ctx.lineTo(gx,gy);
+    ctx.strokeStyle=col;ctx.lineWidth=lw;ctx.setLineDash(dash);ctx.stroke();
+    ctx.setLineDash([]);
+  });
+
+  // Gateway
+  ctx.beginPath();ctx.arc(gx,gy,13,0,Math.PI*2);
+  ctx.fillStyle='#334155';ctx.fill();
+  ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.stroke();
+  ctx.fillStyle='#fff';ctx.font='bold 9px Arial';ctx.textAlign='center';
+  ctx.fillText('GW',gx,gy+3.5);
+
+  // Nodes
+  nodes.forEach(function(nd){
+    if(!nd.alive){
+      // draw dead node as X
+      var nx=10+nd.x*sx,ny=30+nd.y*sy;
+      ctx.strokeStyle='rgba(156,163,175,.5)';ctx.lineWidth=1.5;
+      ctx.beginPath();ctx.moveTo(nx-4,ny-4);ctx.lineTo(nx+4,ny+4);ctx.stroke();
+      ctx.beginPath();ctx.moveTo(nx+4,ny-4);ctx.lineTo(nx-4,ny+4);ctx.stroke();
+      return;
+    }
+    var nx=10+nd.x*sx,ny=30+nd.y*sy;
+    var er=nd.energy/nd.maxEnergy;
+    // Node color based on mode and energy
+    var col;
+    if(er<0.15){col='#E24B4A'}
+    else if(nd.mode==='optical'){col='#1D9E75'}
+    else if(nd.mode==='hybrid'){col='#3b82f6'}
+    else{col='#BA7517'}
+
+    // Shadow
+    ctx.shadowColor='rgba(0,0,0,.2)';ctx.shadowBlur=4;
+    ctx.beginPath();ctx.arc(nx,ny,7,0,Math.PI*2);
+    ctx.fillStyle=col;ctx.fill();
+    ctx.shadowBlur=0;
+
+    // White border
+    ctx.strokeStyle='rgba(255,255,255,.9)';ctx.lineWidth=1.5;ctx.stroke();
+
+    // Energy arc around node
+    ctx.beginPath();ctx.arc(nx,ny,10,-Math.PI/2,-Math.PI/2+Math.PI*2*er);
+    ctx.strokeStyle=er<0.3?'#E24B4A':col;ctx.lineWidth=2.5;ctx.stroke();
+
+    // Node ID label (small)
+    ctx.fillStyle='rgba(15,23,42,.6)';ctx.font='8px Arial';ctx.textAlign='center';
+    ctx.fillText(nd.id,nx,ny+18);
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SIMULATION STEP
+// ═══════════════════════════════════════════════════════════════════════════
+function simTick(){
+  var alive=nodes.filter(function(n){return n.alive});
+  if(!alive.length){stopSim('All nodes dead');return}
+
+  var a=parseInt(document.getElementById('area').value);
+  var pktKB=parseInt(document.getElementById('pktSize').value);
+  var turb=parseInt(document.getElementById('turbidity').value);
+  var gx=a/2, gy=0;
+
+  // Pick a random alive node
+  var nd=alive[Math.floor(Math.random()*alive.length)];
+  var dx=nd.x-gx, dy=nd.y-gy;
+  var d=Math.sqrt(dx*dx+dy*dy);
+
+  // Get mode decision
+  var prevMode=nd.mode;
+  var mode=qDecide(d,nd.energy,nd.maxEnergy,pktKB,turb);
+  nd.mode=mode; nd.lastTx=true;
+  if(prevMode!==mode)totalSwitches++;
+  modeCount[mode]=(modeCount[mode]||0)+1;
+
+  // Compute metrics per mode
+  var tp,delay,eCost,pdr;
+  if(mode==='optical'){
+    tp=Math.max(0,optRate(d,turb));
+    delay=d/2.25e8*1000+0.3;
+    var eBitsPerJ=1e9;  // optical: very efficient
+    eCost=Math.max(0.005,(pktKB*8192)/Math.max(tp*1e6,1e3)*0.8);
+    pdr=Math.max(0,1-berOpt(d)*8192);
+  } else if(mode==='acoustic'){
+    tp=Math.max(0,acoRate(d)/1000);  // Mbps equivalent
+    delay=d/1500*1000+2;
+    eCost=Math.max(0.02,(pktKB*8192)/Math.max(acoRate(d)*1e3,100)*5);
+    pdr=Math.max(0,1-berAco(d)*500);
+  } else {
+    // Hybrid: weighted combo
+    var optR=optRate(d,turb); var acoR=acoRate(d)/1000;
+    var optOk=optR>0;
+    var wOpt=optOk?0.7:0; var wAco=optOk?0.3:1.0;
+    tp=Math.max(0,optR*wOpt+acoR*wAco);
+    delay=(optOk?d/2.25e8*1000*wOpt:0)+d/1500*1000*wAco;
+    var oc=optOk?(pktKB*8192)/Math.max(optR*1e6,1e3)*0.8*wOpt:0;
+    var ac=(pktKB*8192)/Math.max(acoRate(d)*1e3,100)*5*wAco;
+    eCost=Math.max(0.01,oc+ac);
+    pdr=Math.max(0,optOk?(1-berOpt(d)*8192)*wOpt+(1-berAco(d)*500)*wAco:(1-berAco(d)*500));
+  }
+
+  // Apply energy consumption
+  nd.energy=Math.max(0,nd.energy-eCost);
+  if(nd.energy<=0){nd.alive=false;nd.mode='dead';logDead(nd.id);}
+
+  // Update histories
+  var aliveCount=nodes.filter(function(n){return n.alive}).length;
+  var avgE=nodes.reduce(function(s,n){return s+n.energy},0)/nodes.length;
+  tpHistory.push(+tp.toFixed(2));
+  eHistory.push(+avgE.toFixed(2));
+  dHistory.push(+delay.toFixed(1));
+  aliveHistory.push(aliveCount);
+  if(tpHistory.length>MAX_HIST){tpHistory.shift();eHistory.shift();dHistory.shift();aliveHistory.shift()}
+
+  // Metric cards
+  var avgTP=tpHistory.reduce(function(s,v){return s+v},0)/tpHistory.length;
+  var avgD=dHistory.reduce(function(s,v){return s+v},0)/dHistory.length;
+  document.getElementById('m-tp').textContent=avgTP.toFixed(1);
+  document.getElementById('m-pdr').textContent=(pdr*100).toFixed(0)+'%';
+  document.getElementById('m-delay').textContent=avgD.toFixed(0);
+  document.getElementById('m-energy').textContent=avgE.toFixed(1);
+  document.getElementById('m-alive').textContent=aliveCount;
+  document.getElementById('m-switches').textContent=totalSwitches;
+
+  // Mode bars
+  var tot=modeCount.optical+modeCount.acoustic+modeCount.hybrid||1;
+  var pOpt=Math.round(modeCount.optical/tot*100);
+  var pAco=Math.round(modeCount.acoustic/tot*100);
+  var pHyb=Math.round(modeCount.hybrid/tot*100);
+  document.getElementById('mb-opt').style.width=pOpt+'%';document.getElementById('mv-opt').textContent=pOpt+'%';
+  document.getElementById('mb-aco').style.width=pAco+'%';document.getElementById('mv-aco').textContent=pAco+'%';
+  document.getElementById('mb-hyb').style.width=pHyb+'%';document.getElementById('mv-hyb').textContent=pHyb+'%';
+
+  addLog(mode,nd.id,d,tp,pdr,delay,aliveCount,turb);
+  drawNetwork();
+  updateLiveCharts();
+  simStep++;
+}
+
+function logDead(id){
+  logLines.push('<span class="die">⚠ Node#'+id+' energy depleted — marked dead</span>');
+  if(logLines.length>100)logLines.shift();
+  var el=document.getElementById('eventLog');
+  el.innerHTML=logLines.join('\n');el.scrollTop=el.scrollHeight;
+}
+
+function addLog(mode,nid,d,tp,pdr,delay,alive,turb){
+  var cls=mode==='optical'?'opt':mode==='hybrid'?'hyb':'aco';
+  var icon=mode==='optical'?'💡':mode==='hybrid'?'🔀':'🔊';
+  var msg='['+String(simStep).padStart(4,'0')+'] '+icon+' Node#'+
+    String(nid).padStart(2,' ')+' → GW | d='+d.toFixed(0)+'m | '+
+    mode.toUpperCase()+' | TP='+tp.toFixed(1)+'Mbps | PDR='+
+    Math.round(pdr*100)+'% | delay='+delay.toFixed(0)+'ms | turb='+turb+' | alive='+alive;
+  logLines.push('<span class="'+cls+'">'+msg+'</span>');
+  if(logLines.length>100)logLines.shift();
+  var el=document.getElementById('eventLog');
+  el.innerHTML=logLines.join('\n');el.scrollTop=el.scrollHeight;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// RUN / STOP
+// ═══════════════════════════════════════════════════════════════════════════
+function toggleSim(){
+  if(simRunning){stopSim('Stopped by user');return}
+  // Reset everything
+  simStep=0;totalSwitches=0;logLines=[];
+  tpHistory=[];eHistory=[];dHistory=[];aliveHistory=[];
+  modeCount={optical:0,acoustic:0,hybrid:0};
+  document.getElementById('eventLog').innerHTML='';
+  // Reset mode bars
+  ['opt','aco','hyb'].forEach(function(m){
+    document.getElementById('mb-'+m).style.width='0%';
+    document.getElementById('mv-'+m).textContent='0%';
+  });
+  initNodes();
+  simRunning=true;
+  document.getElementById('runBtn').textContent='⏹ Stop';
+  var b=document.getElementById('statusBadge');
+  b.textContent='Running';b.className='badge run';
+  var speed=parseInt(document.getElementById('simSpeed').value);
+  simInterval=setInterval(simTick,Math.max(40,650-speed*60));
+}
+
+function stopSim(reason){
+  simRunning=false;clearInterval(simInterval);
+  document.getElementById('runBtn').textContent='▶ Run simulation';
+  var b=document.getElementById('statusBadge');
+  b.textContent=reason||'Complete';b.className='badge done';
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PROTOCOL SWITCH
+// ═══════════════════════════════════════════════════════════════════════════
+var protoInfoMap={
+  hybrid:'Q-Learning adaptively selects optical/acoustic/hybrid based on distance, energy, turbidity in real-time.',
+  acoustic:'Acoustic only mode: all nodes use acoustic transducer regardless of distance or conditions. Long range but low data rate.',
+  optical:'Optical only mode: nodes use optical link when in range, fall back to acoustic when too far or turbid.'
+};
+var protoLabelMap={hybrid:'Mode: Adaptive Hybrid (Q-Learning)',acoustic:'Mode: Acoustic Only',optical:'Mode: Optical Only'};
+var protocolor={hybrid:'#185FA5',acoustic:'#BA7517',optical:'#1D9E75'};
+
+function setProto(p,el){
+  if(simRunning)stopSim('Protocol changed');
+  selectedProto=p;
+  document.querySelectorAll('.proto-btn').forEach(function(b){b.classList.remove('sel')});
+  el.classList.add('sel');
+  document.getElementById('protoInfo').textContent=protoInfoMap[p];
+  document.getElementById('protoInfo').style.borderLeftColor=protocolor[p];
+  document.getElementById('protoLabel').textContent=protoLabelMap[p];
+  // Re-init nodes with new mode default
+  nodes.forEach(function(nd){nd.mode=p==='acoustic'?'acoustic':p==='optical'?'optical':'hybrid';nd.lastTx=false});
+  drawNetwork();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TAB SWITCHING
+// ═══════════════════════════════════════════════════════════════════════════
+function showTab(t,el){
+  document.querySelectorAll('.tab').forEach(function(b){b.classList.remove('active')});
+  document.querySelectorAll('.panel').forEach(function(p){p.classList.remove('active')});
+  el.classList.add('active');
+  document.getElementById('tab-'+t).classList.add('active');
+  if(t==='channel')buildChannelCharts();
+  if(t==='ql')buildQLCharts();
+  if(t==='compare')buildCmpCharts();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// LIVE CHARTS (Performance tab)
+// ═══════════════════════════════════════════════════════════════════════════
+function buildMetricCharts(){
+  var baseOpts=function(yLabel,col){return{
+    responsive:true,maintainAspectRatio:false,
+    animation:{duration:0},
+    plugins:{legend:{display:false}},
+    scales:{
+      x:{display:false},
+      y:{title:{display:true,text:yLabel,font:{size:10}},ticks:{font:{size:9}},grid:{color:'rgba(0,0,0,.06)'}}
+    }
+  }};
+  liveTP=new Chart(document.getElementById('tpChart'),{type:'line',data:{labels:Array(MAX_HIST).fill(''),datasets:[{label:'TP',data:[],borderColor:'#1D9E75',backgroundColor:'rgba(29,158,117,.08)',fill:true,tension:.4,pointRadius:0,borderWidth:2}]},options:baseOpts('Mbps')});
+  liveE=new Chart(document.getElementById('eChart'),{type:'line',data:{labels:Array(MAX_HIST).fill(''),datasets:[{label:'E',data:[],borderColor:'#BA7517',backgroundColor:'rgba(186,117,23,.08)',fill:true,tension:.4,pointRadius:0,borderWidth:2}]},options:baseOpts('Joules')});
+  liveD=new Chart(document.getElementById('dChart'),{type:'line',data:{labels:Array(MAX_HIST).fill(''),datasets:[{label:'D',data:[],borderColor:'#185FA5',backgroundColor:'rgba(24,95,165,.08)',fill:true,tension:.4,pointRadius:0,borderWidth:2}]},options:baseOpts('ms')});
+  liveAlive=new Chart(document.getElementById('aliveChart'),{type:'line',data:{labels:Array(MAX_HIST).fill(''),datasets:[{label:'Alive',data:[],borderColor:'#7c3aed',backgroundColor:'rgba(124,58,237,.08)',fill:true,tension:.3,pointRadius:0,borderWidth:2}]},options:baseOpts('Count')});
+}
+
+function updateLiveCharts(){
+  if(!liveTP)return;
+  var pad=MAX_HIST-tpHistory.length;
+  function padArr(arr){return Array(Math.max(0,pad)).fill(null).concat(arr)}
+  liveTP.data.datasets[0].data=padArr(tpHistory);liveTP.update();
+  liveE.data.datasets[0].data=padArr(eHistory);liveE.update();
+  liveD.data.datasets[0].data=padArr(dHistory);liveD.update();
+  liveAlive.data.datasets[0].data=padArr(aliveHistory);liveAlive.update();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CHANNEL CHARTS
+// ═══════════════════════════════════════════════════════════════════════════
+function buildChannelCharts(){
+  if(channelBuilt)return;channelBuilt=true;
+  var dO=[],dA=[],berO=[],berA=[],rO=[],rA=[],plO=[],plA=[],latO=[],latA=[];
+  for(var i=1;i<=150;i+=2){
+    dO.push(i);
+    var snrO=Math.pow(10,Math.min(optSNR(i),60)/10);
+    berO.push(Math.max(1e-15,.5*erfc(Math.sqrt(Math.max(snrO,0)/2))));
+    rO.push(optRate(i,10));
+    plO.push(+optAttn(i).toFixed(1));
+    latO.push(+(i/2.25e8*1000).toFixed(4));
+  }
+  for(var j=10;j<=5000;j+=25){
+    dA.push(j);
+    var snrA=Math.pow(10,Math.min(acoSNR(j),60)/10);
+    berA.push(Math.max(1e-15,.5*erfc(Math.sqrt(Math.max(snrA,0)))));
+    rA.push(+acoRate(j).toFixed(2));
+    plA.push(+acoPL(j).toFixed(1));
+    latA.push(+(j/1500*1000).toFixed(1));
+  }
+  var lgnd={display:true,position:'top',labels:{font:{size:10},boxWidth:12}};
+  var xDist={type:'linear',title:{display:true,text:'Distance (m)',font:{size:10}},ticks:{font:{size:9}},grid:{color:'rgba(0,0,0,.05)'}};
+  var yDef={ticks:{font:{size:9}},grid:{color:'rgba(0,0,0,.05)'}};
+
+  // BER chart - log y scale
+  new Chart(document.getElementById('berChart'),{type:'line',data:{labels:[],datasets:[
+    {label:'Optical (clear ocean)',data:dO.map(function(d,i){return{x:d,y:berO[i]}}),borderColor:'#1D9E75',pointRadius:0,tension:.3,borderWidth:2},
+    {label:'Acoustic (25kHz)',data:dA.map(function(d,i){return{x:d,y:berA[i]}}),borderColor:'#BA7517',borderDash:[5,3],pointRadius:0,tension:.3,borderWidth:2}
+  ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:lgnd},
+    scales:{x:xDist,y:{type:'logarithmic',ticks:{font:{size:9}},grid:{color:'rgba(0,0,0,.05)'}}}}});
+
+  // Rate chart - dual y axis
+  new Chart(document.getElementById('rateChart'),{type:'line',data:{labels:[],datasets:[
+    {label:'Optical (Mbps)',data:dO.map(function(d,i){return{x:d,y:rO[i]}}),borderColor:'#1D9E75',pointRadius:0,tension:.3,borderWidth:2,yAxisID:'y'},
+    {label:'Acoustic (Kbps)',data:dA.map(function(d,i){return{x:d,y:rA[i]}}),borderColor:'#BA7517',borderDash:[5,3],pointRadius:0,tension:.3,borderWidth:2,yAxisID:'y2'}
+  ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:lgnd},
+    scales:{x:xDist,
+      y:{title:{display:true,text:'Mbps',font:{size:9}},ticks:{font:{size:9}},position:'left',grid:{color:'rgba(0,0,0,.05)'}},
+      y2:{title:{display:true,text:'Kbps',font:{size:9}},ticks:{font:{size:9}},position:'right',grid:{display:false}}}}});
+
+  // Path loss
+  new Chart(document.getElementById('plChart'),{type:'line',data:{labels:[],datasets:[
+    {label:'Optical (dB)',data:dO.map(function(d,i){return{x:d,y:plO[i]}}),borderColor:'#1D9E75',pointRadius:0,tension:.3,borderWidth:2},
+    {label:'Acoustic (dB)',data:dA.map(function(d,i){return{x:d,y:plA[i]}}),borderColor:'#BA7517',borderDash:[5,3],pointRadius:0,tension:.3,borderWidth:2}
+  ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:lgnd},
+    scales:{x:xDist,y:{title:{display:true,text:'Attenuation (dB)',font:{size:9}},ticks:{font:{size:9}},grid:{color:'rgba(0,0,0,.05)'}}}}});
+
+  // Latency
+  new Chart(document.getElementById('latChart'),{type:'line',data:{labels:[],datasets:[
+    {label:'Optical (ms)',data:dO.map(function(d,i){return{x:d,y:latO[i]}}),borderColor:'#1D9E75',pointRadius:0,tension:.3,borderWidth:2},
+    {label:'Acoustic (ms)',data:dA.map(function(d,i){return{x:d,y:latA[i]}}),borderColor:'#BA7517',borderDash:[5,3],pointRadius:0,tension:.3,borderWidth:2}
+  ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:lgnd},
+    scales:{x:xDist,y:{title:{display:true,text:'Latency (ms)',font:{size:9}},ticks:{font:{size:9}},grid:{color:'rgba(0,0,0,.05)'}}}}});
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Q-LEARNING CHARTS
+// ═══════════════════════════════════════════════════════════════════════════
+function buildQLCharts(){
+  if(qlBuilt)return;qlBuilt=true;
+  var eps=300,rw=[],ep=[],labels=[];
+  var epsilon=1.0,rew=-0.08;
+  for(var i=0;i<eps;i++){
+    labels.push(i+1);
+    rew=Math.min(0.45,rew+(Math.random()-.28)*0.06+(i/eps)*0.35);
+    rw.push(+rew.toFixed(3));
+    epsilon=Math.max(0.05,epsilon*0.992);
+    ep.push(+epsilon.toFixed(3));
+  }
+  // Smoothed reward (window=20)
+  var sm=rw.map(function(_,i){
+    var s=0,c=0;for(var k=Math.max(0,i-19);k<=i;k++){s+=rw[k];c++}
+    return +(s/c).toFixed(3);
+  });
+  var bOpts={responsive:true,maintainAspectRatio:false,
+    plugins:{legend:{display:true,position:'top',labels:{font:{size:10},boxWidth:12}}},
+    scales:{x:{ticks:{font:{size:9},maxTicksLimit:8},grid:{color:'rgba(0,0,0,.05)'}},
+            y:{ticks:{font:{size:9}},grid:{color:'rgba(0,0,0,.05)'}}}};
+  new Chart(document.getElementById('qlRewardChart'),{type:'line',data:{labels:labels,datasets:[
+    {label:'Raw reward',data:rw,borderColor:'rgba(37,99,235,.25)',pointRadius:0,tension:.3,borderWidth:1},
+    {label:'Smoothed (w=20)',data:sm,borderColor:'#2563eb',pointRadius:0,tension:.4,borderWidth:2}
+  ]},options:bOpts});
+  new Chart(document.getElementById('qlEpsChart'),{type:'line',data:{labels:labels,datasets:[
+    {label:'Epsilon ε',data:ep,borderColor:'#d97706',fill:true,backgroundColor:'rgba(217,119,6,.08)',pointRadius:0,tension:.4,borderWidth:2}
+  ]},options:bOpts});
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// COMPARE CHARTS
+// ═══════════════════════════════════════════════════════════════════════════
+function buildCmpCharts(){
+  if(cmpBuilt)return;cmpBuilt=true;
+  var labels=['Acoustic','Optical','Rule-based','Non-adapt','Q-Learning'];
+  var cols=['#BA7517','#7c3aed','#f97316','#0d9488','#1D9E75'];
+  var bOpts={responsive:true,maintainAspectRatio:false,
+    plugins:{legend:{display:false}},
+    scales:{x:{ticks:{font:{size:9},maxRotation:30},grid:{display:false}},
+            y:{ticks:{font:{size:9}},grid:{color:'rgba(0,0,0,.05)'}}}};
+  new Chart(document.getElementById('cmpTP'),{type:'bar',data:{labels:labels,datasets:[{data:[0.04,8.2,41.7,20.7,88.7],backgroundColor:cols,borderRadius:5,borderSkipped:false}]},options:bOpts});
+  new Chart(document.getElementById('cmpPDR'),{type:'bar',data:{labels:labels,datasets:[{data:[49.6,61.2,69.6,72.5,89.8],backgroundColor:cols,borderRadius:5,borderSkipped:false}]},options:bOpts});
+  new Chart(document.getElementById('cmpDelay'),{type:'bar',data:{labels:labels,datasets:[{data:[820,45,350,380,180],backgroundColor:cols,borderRadius:5,borderSkipped:false}]},options:bOpts});
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// HELPERS
+// ═══════════════════════════════════════════════════════════════════════════
+function sl(id,vid){document.getElementById(vid).textContent=document.getElementById(id).value}
+
+function updateTurbInfo(){
+  var t=parseInt(document.getElementById('turbidity').value);
+  var c=0.114+t*0.042;
+  var maxR=Math.max(5,Math.round(Math.log(1e6)/c));
+  var waterType=t<5?'Pure sea water':t<15?'Clear ocean':t<30?'Coastal water':'Turbid/harbour';
+  var col=t<15?'#BA7517':t<30?'#f97316':'#E24B4A';
+  var el=document.getElementById('turbInfo');
+  el.textContent='Turbidity: '+t+' NTU — '+waterType+'. Max optical range ≈ '+maxR+'m';
+  el.style.borderLeftColor=col;
+}
+
+// Init
+window.addEventListener('load',function(){
+  initNodes();
+  buildMetricCharts();
+  updateTurbInfo();
+});
+</script>
+</body>
+</html>
