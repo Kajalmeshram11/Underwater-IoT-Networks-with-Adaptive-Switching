@@ -1,6 +1,5 @@
 # 🌊 Hybrid Optical–Acoustic UIoT Communication with Adaptive Switching
-# Link for Project 
- https://github.com/Kajalmeshram11/Underwater-IoT-Networks-with-Adaptive-Switching.git
+# Link for Project- https://github.com/Kajalmeshram11/Underwater-IoT-Networks-with-Adaptive-Switching.git
 
 > **Adaptive Q-Learning Protocol for Energy-Efficient High-Data-Rate Underwater IoT Networks**
 
