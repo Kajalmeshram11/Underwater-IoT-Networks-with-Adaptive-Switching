@@ -1,4 +1,6 @@
 # 🌊 Hybrid Optical–Acoustic UIoT Communication with Adaptive Switching
+# Link for Project 
+ https://github.com/Kajalmeshram11/Underwater-IoT-Networks-with-Adaptive-Switching.git
 
 > **Adaptive Q-Learning Protocol for Energy-Efficient High-Data-Rate Underwater IoT Networks**
 
@@ -193,7 +195,7 @@ R = 0.35·throughput_norm + 0.30·energy_efficiency
 ## Running Locally (Alternative to Colab)
 
 ```bash
-git clone https://github.com/yourusername/uiot-hybrid-comm.git
+git clone https://github.com/Kajalmeshram11/Underwater-IoT-Networks-with-Adaptive-Switching.git
 cd uiot-hybrid-comm
 
 pip install numpy scipy matplotlib
